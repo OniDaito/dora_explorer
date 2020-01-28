@@ -54,35 +54,105 @@ static SHRINK : f32 = 0.95;
 pub struct Explorer {
     app: gtk::Application,
     image_paths : Vec<PathBuf>,
-    image_index : Cell<usize> // use this so we can mutate it later
+    image_index : Cell<usize>, // use this so we can mutate it later
+    output_path : PathBuf
 }
 
 // Convert our model into a gtk::Image that we can present to
 // the screen.
 
-fn get_image(path : &Path) -> gtk::Image {
-
+fn get_image(path : &Path) -> (gtk::Image, Vec<Vec<f32>>) {
     let img_file = File::open(path).expect("Cannot find test image!");
     let mut decoder = Decoder::new(img_file).expect("Cannot create decoder");
 
     assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(16));
     let img_res = decoder.read_image().unwrap();
 
+    // Check the image size here
+
+    // Our buffer - we sum all the image here and then scale
+    let mut img_buffer : Vec<Vec<f32>> = vec![];
+    for y in 0..HEIGHT {
+        let mut row  : Vec<f32> = vec![];
+        for x in 0..WIDTH {
+            row.push(0 as f32);
+        }
+        img_buffer.push(row);
+    }
+
+    // Final buffer that we use that is a little smaller - u8
+    // and not u16, but also RGB, just to make GTK happy.
+    let mut final_buffer : Vec<u8> = vec![];
+    for y in 0..HEIGHT {
+        let mut row  : Vec<u8> = vec![];
+        for x in 0..WIDTH {
+            // GTK insists we have RGB so we triple everything :/
+            for _ in 0..3 {
+                final_buffer.push(0 as u8);
+            }
+        }
+    }
+   
+    // Now we've decoded, lets update the img_buffer
     if let DecodingResult::U16(img_res) = img_res {
         let mut levels : usize = 0;
+        for y in 0..HEIGHT as usize {
+            for x in 0..WIDTH as usize {
+                img_buffer[y][x] = (img_res[y * (HEIGHT as usize) + x] as f32);
+            }
+        }
+
         while decoder.more_images() {
-            let img_next_res = decoder.next_image();
-            match (img_next_res) {
-                Ok(res) => { levels += 1; },
+            let next_res = decoder.next_image();
+            match next_res {
+                Ok(res) => {   
+                    let img_next = decoder.read_image().unwrap();
+                    if let DecodingResult::U16(img_next) = img_next {
+                        levels += 1;
+                        for y in 0..HEIGHT as usize {
+                            for x in 0..WIDTH as usize {
+                                img_buffer[y][x] += (img_next[y * (HEIGHT as usize) + x] as f32);
+                            }
+                        } 
+                    }
+                },
                 Err(_) => {}
             }
         }
+        // We take an average rather than a total sum
+        for y in 0..HEIGHT as usize {
+            for x in 0..WIDTH as usize {
+                img_buffer[y][x] = img_buffer[y][x] / (levels as f32);
+            }
+        }
+
+        // Find min/max
+        let mut minp : f32 = 1e12; // we might end up overflowing!
+        let mut maxp : f32 = 0.0;
+        for y in 0..HEIGHT as usize {
+            for x in 0..WIDTH as usize {
+                if (img_buffer[y][x] as f32) > maxp { maxp = img_buffer[y][x] as f32; }
+                if (img_buffer[y][x] as f32) < minp { minp = img_buffer[y][x] as f32; }
+            }
+        }
+
+        for y in 0..HEIGHT as usize {
+            for x in 0..WIDTH as usize {
+                let colour = (img_buffer[y][x] / maxp * 255.0) as u8;
+                let idx = (y * (HEIGHT as usize) + x) * 3;
+                final_buffer[idx] = colour;
+                final_buffer[idx+1] = colour;
+                final_buffer[idx+2] = colour;
+            }
+        } 
+
+        let b = Bytes::from(&final_buffer);
 
         println!("Succesfully read {} which has {} levels.", path.display(), levels);
 
         // Convert down the tiff so we can see it.
         
-        /*let pixybuf = Pixbuf::new_from_bytes(&img_res,
+        let pixybuf = Pixbuf::new_from_bytes(&b,
             Colorspace::Rgb,
             false, 
             8,
@@ -92,21 +162,21 @@ fn get_image(path : &Path) -> gtk::Image {
         );
 
         let image : gtk::Image = gtk::Image::new_from_pixbuf(Some(&pixybuf));
-        return image;*/
+        return (image, img_buffer);
 
     } else {
         panic!("Wrong data type");
     }
 
     let image: gtk::Image = gtk::Image::new();
-    image
+    (image, img_buffer)
 }
 
 
 // Our chooser struct/class implementation. Mostly just runs the GTK
 // and keeps a hold on our models.
 impl Explorer {
-    pub fn new(image_paths : Vec<PathBuf>) -> Rc<Self> {
+    pub fn new(image_paths : Vec<PathBuf>, output_path : PathBuf) -> Rc<Self> {
         let app = Application::new(
             Some("com.github.gtk-rs.examples.basic"),
             Default::default(),
@@ -117,7 +187,8 @@ impl Explorer {
         let explorer = Rc::new(Self {
             app,
             image_paths,
-            image_index
+            image_index,
+            output_path
         });
 
         explorer
@@ -134,8 +205,8 @@ impl Explorer {
             let vbox = gtk::Box::new(gtk::Orientation::Vertical, 3);
             let ibox = gtk::Box::new(gtk::Orientation::Horizontal, 1);
             let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-            let image = get_image(&(app.image_paths[0]));
-            //ibox.add(&image);
+            let (image, buffer) = get_image(&(app.image_paths[0]));
+            ibox.add(&image);
             vbox.add(&ibox);
             vbox.add(&hbox);
             window.add(&vbox);
@@ -148,18 +219,23 @@ impl Explorer {
 
             let mut i : i32 = 0;
             let button_click = || { i + 1 };
-
+            
+            // Accept button
             button_accept.connect_clicked( move |button| {
                 println!("Accepted {}", app_accept.image_index.get());
-            
-                /*let ibox_ref = ibox_accept.lock().unwrap();
+                let mi = app_accept.image_index.get();
+                if mi + 1 >= app_accept.image_paths.len() {
+                    println!("All models checked!");
+                    return;
+                }
+                let ibox_ref = ibox_accept.lock().unwrap();
                 let children : Vec<gtk::Widget> = (*ibox_ref).get_children();
-                app_accept.model_index.set(mi + 1);
-                let image = get_image(&(app_accept.models[mi + 1]), scale);
+                app_accept.image_index.set(mi + 1);
+                let (image, buffer) = get_image(&(app_accept.image_paths[mi + 1]));
                 (*ibox_ref).remove(&children[0]);
                 (*ibox_ref).add(&image);
                 let window_ref = (*ibox_ref).get_parent().unwrap();
-                window_ref.show_all();*/
+                window_ref.show_all();
             });
 
             hbox.add(&button_accept);
@@ -202,8 +278,8 @@ fn main() {
 
     let mut image_files : Vec<PathBuf> = vec!();
     
-    if args.len() < 2 {
-        println!("Usage: explorer <path to directory of tiff files>"); 
+    if args.len() < 3 {
+        println!("Usage: explorer <path to directory of tiff files> <output dir>"); 
         process::exit(1);
     }
 
@@ -233,6 +309,6 @@ fn main() {
     }
 
     gtk::init().expect("Unable to start GTK3");
-    let app = Explorer::new(image_files);
+    let app = Explorer::new(image_files, PathBuf::from(&args[2]));
     app.run(app.clone());
 }
