@@ -18,6 +18,7 @@ extern crate gio;
 extern crate gdk_pixbuf;
 extern crate glib;
 extern crate tiff;
+extern crate fitrs;
 
 use gtk::prelude::*;
 use gio::prelude::*;
@@ -34,10 +35,11 @@ use std::io::prelude::*;
 use rand::prelude::*;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, rc::Rc, cell::RefCell};
 use tiff::decoder::{ifd, Decoder, DecodingResult};
 use tiff::ColorType;
 use std::process;
+use fitrs::{Fits, Hdu};
 use rand::distributions::Uniform;
 use scoped_threadpool::Pool;
 use std::sync::mpsc::channel;
@@ -55,7 +57,9 @@ pub struct Explorer {
     app: gtk::Application,
     image_paths : Vec<PathBuf>,
     image_index : Cell<usize>, // use this so we can mutate it later
-    output_path : PathBuf
+    accept_count : Cell<usize>,
+    output_path : PathBuf,
+    image_buffer : RefCell<Vec<Vec<f32>>>
 }
 
 // Convert our model into a gtk::Image that we can present to
@@ -172,6 +176,37 @@ fn get_image(path : &Path) -> (gtk::Image, Vec<Vec<f32>>) {
     (image, img_buffer)
 }
 
+// Save out the fits image
+pub fn save_fits(img : &Vec<Vec<f32>>, filename : &String) {
+    let mut data : Vec<f32> = (0..HEIGHT)
+        .map(|i| (0..WIDTH).map(
+               move |j| (i + j) as f32)).flatten().collect();
+
+    for _y in 0..HEIGHT {
+        for _x in 0..WIDTH {
+            let idx : usize = (_y * WIDTH +_x ) as usize; 
+            data[idx] = img[_x as usize][(HEIGHT - _y - 1) as usize];
+            // / intensity * MULTFAC;
+        }
+    }
+
+    let mut primary_hdu = 
+        Hdu::new(&[WIDTH as usize , HEIGHT as usize], data);
+    // Insert values in header
+    primary_hdu.insert("NORMALISATION", "NONE");
+    primary_hdu.insert("WIDTH", WIDTH as i32);
+    primary_hdu.insert("HEIGHT", HEIGHT as i32);
+    Fits::create(filename, primary_hdu).expect("Failed to create");  
+}
+
+pub fn copy_buffer(in_buff : &Vec<Vec<f32>>, out_buff : &mut Vec<Vec<f32>>) {
+    for _y in 0..HEIGHT as usize {
+        for _x in 0..WIDTH as usize {
+            out_buff[_y][_x] = in_buff[_y][_x];
+        }
+    }
+}
+
 
 // Our chooser struct/class implementation. Mostly just runs the GTK
 // and keeps a hold on our models.
@@ -183,12 +218,26 @@ impl Explorer {
         ).expect("failed to initialize GTK application");
 
         let mut image_index : Cell<usize> = Cell::new(0);
+        let mut accept_count : Cell<usize> = Cell::new(0);
+
+        let mut tbuf : Vec<Vec<f32>> = vec![];
+        for y in 0..HEIGHT {
+            let mut row  : Vec<f32> = vec![];
+            for x in 0..WIDTH {
+                row.push(0 as f32);
+            }
+            tbuf.push(row);
+        }
+
+        let mut image_buffer : RefCell<Vec<Vec<f32>>> = RefCell::new(tbuf);
 
         let explorer = Rc::new(Self {
             app,
             image_paths,
             image_index,
-            output_path
+            accept_count,
+            output_path,
+            image_buffer
         });
 
         explorer
@@ -206,6 +255,8 @@ impl Explorer {
             let ibox = gtk::Box::new(gtk::Orientation::Horizontal, 1);
             let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 3);
             let (image, buffer) = get_image(&(app.image_paths[0]));
+            copy_buffer(&buffer, &mut app.image_buffer.borrow_mut());
+
             ibox.add(&image);
             vbox.add(&ibox);
             vbox.add(&hbox);
@@ -225,13 +276,27 @@ impl Explorer {
                 println!("Accepted {}", app_accept.image_index.get());
                 let mi = app_accept.image_index.get();
                 if mi + 1 >= app_accept.image_paths.len() {
-                    println!("All models checked!");
+                    println!("All images checked!");
                     return;
                 }
+
+                // Get the current filename and save out the buffer
+                let fidx = format!("/image_{:06}.fits", app_accept.accept_count.get() as usize);
+                let mut fitspath = String::from(app_accept.output_path.to_str().unwrap());
+                fitspath.push_str(&fidx);
+                save_fits(&app_accept.image_buffer.borrow_mut(), &fitspath);
+
+                // Increment accept count
+                let ai = app_accept.accept_count.get();
+                app_accept.accept_count.set(ai + 1);
+
+                // Now move on to the next image
                 let ibox_ref = ibox_accept.lock().unwrap();
                 let children : Vec<gtk::Widget> = (*ibox_ref).get_children();
                 app_accept.image_index.set(mi + 1);
                 let (image, buffer) = get_image(&(app_accept.image_paths[mi + 1]));
+                copy_buffer(&buffer, &mut app_accept.image_buffer.borrow_mut());
+
                 (*ibox_ref).remove(&children[0]);
                 (*ibox_ref).add(&image);
                 let window_ref = (*ibox_ref).get_parent().unwrap();
@@ -248,20 +313,21 @@ impl Explorer {
                 println!("Rejected {}", app_reject.image_index.get());
 
                 // Check we aren't overrunning
-                /*let mi = app_reject.model_index.get();
-                if mi >= app_reject.models.len() {
-                    println!("All models checked!");
+                let mi = app_reject.image_index.get();
+                if mi + 1 >= app_reject.image_paths.len() {
+                    println!("All images checked!");
                     process::exit(1);
                 }
 
                 let ibox_ref = ibox_reject.lock().unwrap();
                 let children : Vec<gtk::Widget> = (*ibox_ref).get_children();
-                app_reject.model_index.set(mi + 1);
-                let image = get_image(&(app_reject.models[mi + 1]), scale);
+                app_reject.image_index.set(mi + 1);
+                let (image, buffer) = get_image(&(app_reject.image_paths[mi + 1]));
+                copy_buffer(&buffer, &mut app_reject.image_buffer.borrow_mut());
                 (*ibox_ref).remove(&children[0]);
                 (*ibox_ref).add(&image);
                 let window_ref = (*ibox_ref).get_parent().unwrap();
-                window_ref.show_all();*/
+                window_ref.show_all();
             });
 
             hbox.add(&button_reject);
