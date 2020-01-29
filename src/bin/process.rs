@@ -46,6 +46,7 @@ use ndarray::{Slice, SliceInfo, s, Array1};
 use gtk::{Application, ApplicationWindow, Button};
 use dora_explorer::dora_tiff::save_fits;
 use dora_explorer::dora_tiff::tiff_to_vec;
+use dora_explorer::dora_tiff::check_size;
 
 static WIDTH : u32 = 128;
 static HEIGHT : u32 = 128;
@@ -79,11 +80,15 @@ fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32) {
                 let side = Uniform::new(-pi, pi);
 
                 for _i in 0..cslice.len() {
-                    let (timg, minp, maxp, levels) = tiff_to_vec(&cslice[_i], WIDTH as usize, HEIGHT as usize);
-                    let fidx = format!("/image_{:06}.fits", (start + _i) as usize);
-                    let mut fitspath = out_path.clone();
-                    fitspath.push_str(&fidx);
-                    save_fits(&timg, &fitspath, WIDTH as usize, HEIGHT as usize);
+                    
+                    if check_size(&cslice[_i], WIDTH as usize, HEIGHT as usize) {
+                        let (timg, minp, maxp, levels) = tiff_to_vec(&cslice[_i], WIDTH as usize, HEIGHT as usize);
+                        let fidx = format!("/image_{:06}.fits", (start + _i) as usize);
+                        let mut fitspath = out_path.clone();
+                        fitspath.push_str(&fidx);
+                        save_fits(&timg, &fitspath, WIDTH as usize, HEIGHT as usize);
+                    }
+
                     tx.send(_i).unwrap();
                 }
             });

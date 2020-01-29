@@ -29,6 +29,13 @@ pub mod dora_tiff {
     use tiff::ColorType;
     use fitrs::{Fits, Hdu};
 
+    pub fn check_size(path : &Path, width: usize, height: usize) -> bool {
+        let img_file = File::open(path).expect("Cannot find test image!");
+        let mut decoder = Decoder::new(img_file).expect("Cannot create decoder");
+        let (dims_width, dims_height) = decoder.dimensions().unwrap();
+        dims_height as usize == height && dims_width as usize == width
+    }
+
     pub fn tiff_to_vec(path : &Path, width: usize, height: usize) -> (Vec<Vec<f32>>, f32, f32, usize) {
         let img_file = File::open(path).expect("Cannot find test image!");
         let mut decoder = Decoder::new(img_file).expect("Cannot create decoder");
