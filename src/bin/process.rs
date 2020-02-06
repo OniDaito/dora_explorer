@@ -145,7 +145,8 @@ fn main() {
             Ok(file) => {
                 let filename = file.file_name();
                 let tx = filename.to_str().unwrap();
-                if tx.contains("tif") {
+                // go for deconvolved(?) and tifs
+                if tx.contains("tif") && tx.contains("decon") {
                     println!("Found tiff: {}", tx);
 
                     let mut owned_string: String = args[1].to_owned();
