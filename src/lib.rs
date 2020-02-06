@@ -29,11 +29,43 @@ pub mod dora_tiff {
     use tiff::ColorType;
     use fitrs::{Fits, Hdu};
 
+    // For augmentation, we have 90, 180 and 270 degrees to avoid artefacts
+    pub enum Direction {
+       Right,
+       Down,
+       Left
+    }
+
     pub fn check_size(path : &Path, width: usize, height: usize) -> bool {
         let img_file = File::open(path).expect("Cannot find test image!");
         let mut decoder = Decoder::new(img_file).expect("Cannot create decoder");
         let (dims_width, dims_height) = decoder.dimensions().unwrap();
         dims_height as usize == height && dims_width as usize == width
+    }
+
+    pub fn aug_vec(img : &Vec<Vec<f32>>, dir : Direction) -> Vec<Vec<f32>> {
+        let mut new_img : Vec<Vec<f32>> = vec!();
+        let mut rm : [[i32; 2]; 2] =  [[0, -1],[1, 0]];
+        match dir { // *self has type Direction
+            Direction::Right => {
+            },
+            Direction::Down =>{
+                rm = [[-1, 0],[0, -1]];
+            },
+            Direction::Left => {
+                rm = [[0, 1],[-1, 0]];
+            },
+        }
+
+        for y in 0..img.len() {
+            for x in 0..img[0].len() {
+                let nx = (x as i32 * rm[0][0] + y as i32 * rm[0][1]) as usize;
+                let ny = (x as i32 * rm[1][0] + y as i32 * rm[1][1]) as usize;
+                new_img[y][x] = img[y][x];
+             }
+        }
+
+        new_img
     }
 
     pub fn tiff_to_vec(path : &Path, width: usize, height: usize) -> (Vec<Vec<f32>>, f32, f32, usize) {
