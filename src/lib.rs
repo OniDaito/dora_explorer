@@ -45,7 +45,14 @@ pub mod dora_tiff {
 
     pub fn aug_vec(img : &Vec<Vec<f32>>, dir : Direction) -> Vec<Vec<f32>> {
         let mut new_img : Vec<Vec<f32>> = vec!();
-        let mut rm : [[i32; 2]; 2] =  [[0, -1],[1, 0]];
+        let mut rm : [[i32; 2]; 2] = [[0, -1],[1, 0]];
+        for y in 0..img.len() {
+            let mut row : Vec<f32> = vec!();
+            for x in 0..img[0].len() {
+                row.push(0.0);
+            }
+            new_img.push(row);
+        }
         match dir { // *self has type Direction
             Direction::Right => {
             },
