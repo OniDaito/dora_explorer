@@ -4,6 +4,8 @@ A couple of programs for dealing with Dora's data. This is written in rust and r
 
 ## Requirements
 
+* Rust crates such as tiff and fitrs, though these are installed easily with the build and run commands.
+* gtk+ development libraries so that the rust crate gtk-rs can build.
 
 ## Building
 

@@ -43,6 +43,13 @@ pub mod dora_tiff {
         dims_height as usize == height && dims_width as usize == width
     }
 
+    pub fn get_size(path : &Path) -> (usize, usize) {
+        let img_file = File::open(path).expect("Cannot find test image!");
+        let mut decoder = Decoder::new(img_file).expect("Cannot create decoder");
+        let (dims_width, dims_height) = decoder.dimensions().unwrap();
+        (dims_height as usize,  dims_width as usize)
+    }
+
     pub fn aug_vec(img : &Vec<Vec<f32>>, dir : Direction) -> Vec<Vec<f32>> {
         let mut new_img : Vec<Vec<f32>> = vec!();
         let mut rm : [[i32; 2]; 2] = [[0, -1],[1, 0]];

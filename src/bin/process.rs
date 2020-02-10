@@ -46,12 +46,9 @@ use ndarray::{Slice, SliceInfo, s, Array1};
 use gtk::{Application, ApplicationWindow, Button};
 use dora_explorer::dora_tiff::save_fits;
 use dora_explorer::dora_tiff::tiff_to_vec;
-use dora_explorer::dora_tiff::check_size;
+use dora_explorer::dora_tiff::get_size;
 use dora_explorer::dora_tiff::aug_vec;
 use dora_explorer::dora_tiff::Direction;
-
-static WIDTH : u32 = 128;
-static HEIGHT : u32 = 128;
 
 // render function. Breaks up the list of paths into chunks for each thread
 fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32) {
@@ -80,34 +77,32 @@ fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32) {
                 let side = Uniform::new(-pi, pi);
 
                 for _i in 0..cslice.len() {
-                    
-                    if check_size(&cslice[_i], WIDTH as usize, HEIGHT as usize) {
-                        let (timg, minp, maxp, levels) = tiff_to_vec(&cslice[_i], WIDTH as usize, HEIGHT as usize);
-                        let fidx = format!("/image_{:06}.fits", ((start + _i) * 4) as usize);
-                        let mut fitspath = out_path.clone();
-                        fitspath.push_str(&fidx);
-                        save_fits(&timg, &fitspath, WIDTH as usize, HEIGHT as usize);
+                    let (width, height) = get_size(&cslice[_i]);
+                    let (timg, minp, maxp, levels) = tiff_to_vec(&cslice[_i], width, height);
+                    let fidx = format!("/image_{:06}.fits", ((start + _i) * 4) as usize);
+                    let mut fitspath = out_path.clone();
+                    fitspath.push_str(&fidx);
+                    save_fits(&timg, &fitspath, width, height);
 
-                        // Now Augment
-                        let fidx1 = format!("/image_{:06}.fits", ((start + _i) * 4 + 1) as usize);
-                        fitspath = out_path.clone();
-                        fitspath.push_str(&fidx1);
-                        let aimg1 = aug_vec(&timg, Direction::Right);
-                        save_fits(&aimg1, &fitspath, WIDTH as usize, HEIGHT as usize);
+                    // Now Augment
+                    let fidx1 = format!("/image_{:06}.fits", ((start + _i) * 4 + 1) as usize);
+                    fitspath = out_path.clone();
+                    fitspath.push_str(&fidx1);
+                    let aimg1 = aug_vec(&timg, Direction::Right);
+                    save_fits(&aimg1, &fitspath, width, height);
 
-                        let fidx2 = format!("/image_{:06}.fits", ((start + _i) * 4 + 2) as usize);
-                        fitspath = out_path.clone();
-                        fitspath.push_str(&fidx2);
-                        let aimg2 = aug_vec(&timg, Direction::Down);
-                        save_fits(&aimg2, &fitspath, WIDTH as usize, HEIGHT as usize);
+                    let fidx2 = format!("/image_{:06}.fits", ((start + _i) * 4 + 2) as usize);
+                    fitspath = out_path.clone();
+                    fitspath.push_str(&fidx2);
+                    let aimg2 = aug_vec(&timg, Direction::Down);
+                    save_fits(&aimg2, &fitspath, width, height);
 
-                        let fidx3 = format!("/image_{:06}.fits", ((start + _i) * 4 + 3) as usize);
-                        fitspath = out_path.clone();
-                        fitspath.push_str(&fidx3);
-                        let aimg3 = aug_vec(&timg, Direction::Right);
-                        save_fits(&aimg3, &fitspath, WIDTH as usize, HEIGHT as usize);
-                    }
-
+                    let fidx3 = format!("/image_{:06}.fits", ((start + _i) * 4 + 3) as usize);
+                    fitspath = out_path.clone();
+                    fitspath.push_str(&fidx3);
+                    let aimg3 = aug_vec(&timg, Direction::Right);
+                    save_fits(&aimg3, &fitspath, width, height);
+            
                     tx.send(_i).unwrap();
                 }
             });
@@ -133,8 +128,14 @@ fn main() {
     let mut image_files : Vec<PathBuf> = vec!();
     
     if args.len() < 4 {
-        println!("Usage: explorer <path to directory of tiff files> <output dir> <num threads>"); 
+        println!("Usage: explorer <path to directory of tiff files>
+            <output dir> <num threads> <OPTIONAL filter>"); 
         process::exit(1);
+    }
+
+    let mut filter : String = String::new();
+    if args.len() == 5 {
+        filter.push_str(&args[5]);
     }
 
     let paths = fs::read_dir(Path::new(&args[1])).unwrap();
@@ -146,7 +147,7 @@ fn main() {
                 let filename = file.file_name();
                 let tx = filename.to_str().unwrap();
                 // go for deconvolved(?) and tifs
-                if tx.contains("tif") && tx.contains("decon") {
+                if tx.contains("tif") && tx.contains(filter.as_str()) {
                     println!("Found tiff: {}", tx);
 
                     let mut owned_string: String = args[1].to_owned();
