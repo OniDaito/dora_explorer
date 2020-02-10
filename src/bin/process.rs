@@ -135,7 +135,7 @@ fn main() {
 
     let mut filter : String = String::new();
     if args.len() == 5 {
-        filter.push_str(&args[5]);
+        filter.push_str(&args[4]);
     }
 
     let paths = fs::read_dir(Path::new(&args[1])).unwrap();
