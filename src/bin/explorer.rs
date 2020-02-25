@@ -368,12 +368,10 @@ fn main() {
             },
             Err(e) => {
                 println!("Error walking directory.");
-            }
-            
+            }   
         }
-       
     }
-
+    image_files.sort();
     gtk::init().expect("Unable to start GTK3");
     let app = Explorer::new(image_files, PathBuf::from(&args[2]));
     app.run(app.clone());
