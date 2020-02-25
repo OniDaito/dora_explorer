@@ -62,6 +62,7 @@ pub mod dora_tiff {
         }
         match dir { // *self has type Direction
             Direction::Right => {
+                rm = [[0, -1],[1, 0]];
             },
             Direction::Down =>{
                 rm = [[-1, 0],[0, -1]];
@@ -75,7 +76,7 @@ pub mod dora_tiff {
             for x in 0..img[0].len() {
                 let nx = (x as i32 * rm[0][0] + y as i32 * rm[0][1]) as usize;
                 let ny = (x as i32 * rm[1][0] + y as i32 * rm[1][1]) as usize;
-                new_img[y][x] = img[y][x];
+                new_img[y][x] = img[ny][nx];
              }
         }
 
