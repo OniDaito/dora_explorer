@@ -46,6 +46,9 @@ use std::sync::mpsc::channel;
 use pbr::ProgressBar;
 use ndarray::{Slice, SliceInfo, s, Array1};
 use gtk::{Application, ApplicationWindow, Button};
+use dora_explorer::dora_tiff::get_image;
+use dora_explorer::dora_tiff::save_fits;
+
 
 static WIDTH : u32 = 128;
 static HEIGHT : u32 = 128;
@@ -60,143 +63,6 @@ pub struct Explorer {
     accept_count : Cell<usize>,
     output_path : PathBuf,
     image_buffer : RefCell<Vec<Vec<f32>>>
-}
-
-// Convert our model into a gtk::Image that we can present to
-// the screen.
-
-fn get_image(path : &Path) -> (gtk::Image, Vec<Vec<f32>>) {
-    let img_file = File::open(path).expect("Cannot find test image!");
-    let mut decoder = Decoder::new(img_file).expect("Cannot create decoder");
-
-    assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(16));
-    let img_res = decoder.read_image().unwrap();
-
-    // Check the image size here
-
-    // Our buffer - we sum all the image here and then scale
-    let mut img_buffer : Vec<Vec<f32>> = vec![];
-    for y in 0..HEIGHT {
-        let mut row  : Vec<f32> = vec![];
-        for x in 0..WIDTH {
-            row.push(0 as f32);
-        }
-        img_buffer.push(row);
-    }
-
-    // Final buffer that we use that is a little smaller - u8
-    // and not u16, but also RGB, just to make GTK happy.
-    let mut final_buffer : Vec<u8> = vec![];
-    for y in 0..HEIGHT {
-        let mut row  : Vec<u8> = vec![];
-        for x in 0..WIDTH {
-            // GTK insists we have RGB so we triple everything :/
-            for _ in 0..3 {
-                final_buffer.push(0 as u8);
-            }
-        }
-    }
-   
-    // Now we've decoded, lets update the img_buffer
-    if let DecodingResult::U16(img_res) = img_res {
-        let mut levels : usize = 0;
-        for y in 0..HEIGHT as usize {
-            for x in 0..WIDTH as usize {
-                img_buffer[y][x] = (img_res[y * (HEIGHT as usize) + x] as f32);
-            }
-        }
-
-        while decoder.more_images() {
-            let next_res = decoder.next_image();
-            match next_res {
-                Ok(res) => {   
-                    let img_next = decoder.read_image().unwrap();
-                    if let DecodingResult::U16(img_next) = img_next {
-                        levels += 1;
-                        for y in 0..HEIGHT as usize {
-                            for x in 0..WIDTH as usize {
-                                img_buffer[y][x] += (img_next[y * (HEIGHT as usize) + x] as f32);
-                            }
-                        } 
-                    }
-                },
-                Err(_) => {}
-            }
-        }
-        // We take an average rather than a total sum
-        for y in 0..HEIGHT as usize {
-            for x in 0..WIDTH as usize {
-                img_buffer[y][x] = img_buffer[y][x] / (levels as f32);
-            }
-        }
-
-        // Find min/max
-        let mut minp : f32 = 1e12; // we might end up overflowing!
-        let mut maxp : f32 = 0.0;
-        for y in 0..HEIGHT as usize {
-            for x in 0..WIDTH as usize {
-                if (img_buffer[y][x] as f32) > maxp { maxp = img_buffer[y][x] as f32; }
-                if (img_buffer[y][x] as f32) < minp { minp = img_buffer[y][x] as f32; }
-            }
-        }
-
-        for y in 0..HEIGHT as usize {
-            for x in 0..WIDTH as usize {
-                let colour = (img_buffer[y][x] / maxp * 255.0) as u8;
-                let idx = (y * (HEIGHT as usize) + x) * 3;
-                final_buffer[idx] = colour;
-                final_buffer[idx+1] = colour;
-                final_buffer[idx+2] = colour;
-            }
-        } 
-
-        let b = Bytes::from(&final_buffer);
-
-        println!("Succesfully read {} which has {} levels.", path.display(), levels);
-
-        // Convert down the tiff so we can see it.
-        
-        let pixybuf = Pixbuf::new_from_bytes(&b,
-            Colorspace::Rgb,
-            false, 
-            8,
-            WIDTH as i32,
-            HEIGHT as i32,
-            (WIDTH * 3 * 1) as i32
-        );
-
-        let image : gtk::Image = gtk::Image::new_from_pixbuf(Some(&pixybuf));
-        return (image, img_buffer);
-
-    } else {
-        panic!("Wrong data type");
-    }
-
-    let image: gtk::Image = gtk::Image::new();
-    (image, img_buffer)
-}
-
-// Save out the fits image
-pub fn save_fits(img : &Vec<Vec<f32>>, filename : &String) {
-    let mut data : Vec<f32> = (0..HEIGHT)
-        .map(|i| (0..WIDTH).map(
-               move |j| (i + j) as f32)).flatten().collect();
-
-    for _y in 0..HEIGHT {
-        for _x in 0..WIDTH {
-            let idx : usize = (_y * WIDTH +_x ) as usize; 
-            data[idx] = img[_x as usize][(HEIGHT - _y - 1) as usize];
-            // / intensity * MULTFAC;
-        }
-    }
-
-    let mut primary_hdu = 
-        Hdu::new(&[WIDTH as usize , HEIGHT as usize], data);
-    // Insert values in header
-    primary_hdu.insert("NORMALISATION", "NONE");
-    primary_hdu.insert("WIDTH", WIDTH as i32);
-    primary_hdu.insert("HEIGHT", HEIGHT as i32);
-    Fits::create(filename, primary_hdu).expect("Failed to create");  
 }
 
 pub fn copy_buffer(in_buff : &Vec<Vec<f32>>, out_buff : &mut Vec<Vec<f32>>) {
@@ -254,7 +120,7 @@ impl Explorer {
             let vbox = gtk::Box::new(gtk::Orientation::Vertical, 3);
             let ibox = gtk::Box::new(gtk::Orientation::Horizontal, 1);
             let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-            let (image, buffer) = get_image(&(app.image_paths[0]));
+            let (image, buffer) = get_image(&(app.image_paths[0]), WIDTH as usize, HEIGHT as usize);
             copy_buffer(&buffer, &mut app.image_buffer.borrow_mut());
 
             ibox.add(&image);
@@ -284,7 +150,7 @@ impl Explorer {
                 let fidx = format!("/image_{:06}.fits", app_accept.accept_count.get() as usize);
                 let mut fitspath = String::from(app_accept.output_path.to_str().unwrap());
                 fitspath.push_str(&fidx);
-                save_fits(&app_accept.image_buffer.borrow_mut(), &fitspath);
+                save_fits(&app_accept.image_buffer.borrow_mut(), &fitspath, WIDTH as usize, HEIGHT as usize);
 
                 // Increment accept count
                 let ai = app_accept.accept_count.get();
@@ -294,7 +160,7 @@ impl Explorer {
                 let ibox_ref = ibox_accept.lock().unwrap();
                 let children : Vec<gtk::Widget> = (*ibox_ref).get_children();
                 app_accept.image_index.set(mi + 1);
-                let (image, buffer) = get_image(&(app_accept.image_paths[mi + 1]));
+                let (image, buffer) = get_image(&(app_accept.image_paths[mi + 1]), WIDTH as usize, HEIGHT as usize);
                 copy_buffer(&buffer, &mut app_accept.image_buffer.borrow_mut());
 
                 (*ibox_ref).remove(&children[0]);
@@ -322,7 +188,7 @@ impl Explorer {
                 let ibox_ref = ibox_reject.lock().unwrap();
                 let children : Vec<gtk::Widget> = (*ibox_ref).get_children();
                 app_reject.image_index.set(mi + 1);
-                let (image, buffer) = get_image(&(app_reject.image_paths[mi + 1]));
+                let (image, buffer) = get_image(&(app_reject.image_paths[mi + 1]), WIDTH as usize, HEIGHT as usize);
                 copy_buffer(&buffer, &mut app_reject.image_buffer.borrow_mut());
                 (*ibox_ref).remove(&children[0]);
                 (*ibox_ref).add(&image);
