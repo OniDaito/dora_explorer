@@ -19,9 +19,9 @@ I think it's a good idea to make sure your rust compilier is up-to-date. I've fa
 
 ## Process
 
-The program *explorer* views the tiff files and spits out fits format images. The program process does the same but a tad faster with no GTK window. The programs are invoked as follows:
+The program *explorer* views the tiff files and spits out both fits format images and the accepted tiffs into a new directory, ready for the *process*. The program process does the same but a tad faster with no GTK window. The programs are invoked as follows:
 
-    cargo run --release --bin explorer <path to dora tiffs> <path to save fits>
+    cargo run --release --bin explorer <path to dora tiffs> <path to save fits and tiffs> <OPTIONAL filter>
     cargo run --release --bin process <path to dora tiffs> <path to save fits> <num threads> <OPTIONAL filter>
 
 The optional filter parameter sets a filter on the filenames. For a file to be accepted it must contain the string filter. 

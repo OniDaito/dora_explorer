@@ -49,11 +49,7 @@ use gtk::{Application, ApplicationWindow, Button};
 use dora_explorer::dora_tiff::get_image;
 use dora_explorer::dora_tiff::save_fits;
 
-
-static WIDTH : u32 = 128;
-static HEIGHT : u32 = 128;
 static SHRINK : f32 = 0.95;
-
 
 // Holds our models and our GTK+ application
 pub struct Explorer {
@@ -65,11 +61,20 @@ pub struct Explorer {
     image_buffer : RefCell<Vec<Vec<f32>>>
 }
 
-pub fn copy_buffer(in_buff : &Vec<Vec<f32>>, out_buff : &mut Vec<Vec<f32>>) {
-    for _y in 0..HEIGHT as usize {
-        for _x in 0..WIDTH as usize {
+pub fn copy_buffer(in_buff : &Vec<Vec<f32>>, out_buff : &mut Vec<Vec<f32>>, width: usize, height : usize) {
+    for _y in 0..width {
+        for _x in 0..height {
             out_buff[_y][_x] = in_buff[_y][_x];
         }
+    }
+}
+
+pub fn resize_buffer_2d(buff : &mut Vec<Vec<f32>>, width: usize, height : usize) {
+    let mut tv : Vec<f32> = vec![];
+    for x in 0..width { tv.push(0.0);}
+    buff.resize(height, tv);
+    for y in 0..height {
+        buff[y].resize(width, 0.0);
     }
 }
 
@@ -87,14 +92,6 @@ impl Explorer {
         let mut accept_count : Cell<usize> = Cell::new(0);
 
         let mut tbuf : Vec<Vec<f32>> = vec![];
-        for y in 0..HEIGHT {
-            let mut row  : Vec<f32> = vec![];
-            for x in 0..WIDTH {
-                row.push(0 as f32);
-            }
-            tbuf.push(row);
-        }
-
         let mut image_buffer : RefCell<Vec<Vec<f32>>> = RefCell::new(tbuf);
 
         let explorer = Rc::new(Self {
@@ -120,8 +117,9 @@ impl Explorer {
             let vbox = gtk::Box::new(gtk::Orientation::Vertical, 3);
             let ibox = gtk::Box::new(gtk::Orientation::Horizontal, 1);
             let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-            let (image, buffer) = get_image(&(app.image_paths[0]), WIDTH as usize, HEIGHT as usize);
-            copy_buffer(&buffer, &mut app.image_buffer.borrow_mut());
+            let (image, buffer, width, height) = get_image(&(app.image_paths[0]));
+            resize_buffer_2d(&mut app.image_buffer.borrow_mut(), width, height);
+            copy_buffer(&buffer, &mut app.image_buffer.borrow_mut(), width, height);
 
             ibox.add(&image);
             vbox.add(&ibox);
@@ -146,11 +144,16 @@ impl Explorer {
                     return;
                 }
 
+        
                 // Get the current filename and save out the buffer
                 let fidx = format!("/image_{:06}.fits", app_accept.accept_count.get() as usize);
                 let mut fitspath = String::from(app_accept.output_path.to_str().unwrap());
                 fitspath.push_str(&fidx);
-                save_fits(&app_accept.image_buffer.borrow_mut(), &fitspath, WIDTH as usize, HEIGHT as usize);
+                let mut copypath = String::from(app_accept.output_path.to_str().unwrap());
+                let tidx = format!("/image_{:06}.tiff", app_accept.accept_count.get() as usize);
+                copypath.push_str(&tidx);
+                save_fits(&app_accept.image_buffer.borrow_mut(), &fitspath, width, height);
+                fs::copy(&app_accept.image_paths[mi], copypath).unwrap();  // Copy accpeted image as is, to our new dir
 
                 // Increment accept count
                 let ai = app_accept.accept_count.get();
@@ -160,8 +163,9 @@ impl Explorer {
                 let ibox_ref = ibox_accept.lock().unwrap();
                 let children : Vec<gtk::Widget> = (*ibox_ref).get_children();
                 app_accept.image_index.set(mi + 1);
-                let (image, buffer) = get_image(&(app_accept.image_paths[mi + 1]), WIDTH as usize, HEIGHT as usize);
-                copy_buffer(&buffer, &mut app_accept.image_buffer.borrow_mut());
+                let (image, buffer, width, height) = get_image(&(app_accept.image_paths[mi + 1]));
+                resize_buffer_2d(&mut app_accept.image_buffer.borrow_mut(), width, height);
+                copy_buffer(&buffer, &mut app_accept.image_buffer.borrow_mut(), width, height);
 
                 (*ibox_ref).remove(&children[0]);
                 (*ibox_ref).add(&image);
@@ -188,8 +192,8 @@ impl Explorer {
                 let ibox_ref = ibox_reject.lock().unwrap();
                 let children : Vec<gtk::Widget> = (*ibox_ref).get_children();
                 app_reject.image_index.set(mi + 1);
-                let (image, buffer) = get_image(&(app_reject.image_paths[mi + 1]), WIDTH as usize, HEIGHT as usize);
-                copy_buffer(&buffer, &mut app_reject.image_buffer.borrow_mut());
+                let (image, buffer, width, height) = get_image(&(app_reject.image_paths[mi + 1]));
+                copy_buffer(&buffer, &mut app_reject.image_buffer.borrow_mut(), width, height);
                 (*ibox_ref).remove(&children[0]);
                 (*ibox_ref).add(&image);
                 let window_ref = (*ibox_ref).get_parent().unwrap();
@@ -211,8 +215,13 @@ fn main() {
     let mut image_files : Vec<PathBuf> = vec!();
     
     if args.len() < 3 {
-        println!("Usage: explorer <path to directory of tiff files> <output dir>"); 
+        println!("Usage: explorer <path to directory of tiff files> <output dir> <OPTIONAL - filter>"); 
         process::exit(1);
+    }
+
+    let mut filter : String = String::new();
+    if args.len() == 4 {
+        filter.push_str(&args[3]);
     }
 
     let paths = fs::read_dir(Path::new(&args[1])).unwrap();
@@ -222,7 +231,7 @@ fn main() {
             Ok(file) => {
                 let filename = file.file_name();
                 let tx = filename.to_str().unwrap();
-                if tx.contains("tif") {
+                if tx.contains("tif") && tx.contains(filter.as_str()) {
                     println!("Found tiff: {}", tx);
 
                     let mut owned_string: String = args[1].to_owned();

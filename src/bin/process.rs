@@ -140,16 +140,23 @@ fn main() {
 
     let paths = fs::read_dir(Path::new(&args[1])).unwrap();
     let nthreads = args[3].parse::<u32>().unwrap();
+    paths.sort();
+    let mut idf = 0;
 
     for path in paths {
         match path {
             Ok(file) => {
                 let filename = file.file_name();
                 let tx = filename.to_str().unwrap();
+                let mut accept : bool = false;
                 // go for deconvolved(?) and tifs
+               
                 if tx.contains("tif") && tx.contains(filter.as_str()) {
+                    accept = true;
+                }
+                
+                if accept {
                     println!("Found tiff: {}", tx);
-
                     let mut owned_string: String = args[1].to_owned();
                     let borrowed_string: &str = "/";
                     owned_string.push_str(borrowed_string);
@@ -160,8 +167,8 @@ fn main() {
             Err(e) => {
                 println!("Error walking directory.");
             }
-            
         }
+        idf = idf + 1;
        
     }
 

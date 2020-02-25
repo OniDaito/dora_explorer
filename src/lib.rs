@@ -82,7 +82,7 @@ pub mod dora_tiff {
         new_img
     }
 
-    pub fn tiff_to_vec(path : &Path, width: usize, height: usize) -> (Vec<Vec<f32>>, f32, f32, usize) {
+    pub fn tiff_to_vec(path : &Path) -> (Vec<Vec<f32>>, usize, usize, f32, f32, usize) {
         let img_file = File::open(path).expect("Cannot find test image!");
         let mut decoder = Decoder::new(img_file).expect("Cannot create decoder");
 
@@ -93,6 +93,9 @@ pub mod dora_tiff {
         let img_res = decoder.read_image().unwrap();
 
         // Check the image size here
+        let (w, h) = decoder.dimensions().unwrap();
+        let width = w as usize;
+        let height = h as usize;
 
         // Our buffer - we sum all the image here and then scale
         let mut img_buffer : Vec<Vec<f32>> = vec![];
@@ -121,9 +124,9 @@ pub mod dora_tiff {
 
         // Now we've decoded, lets update the img_buffer
         if let DecodingResult::U16(img_res) = img_res {
-            for y in 0..height as usize {
-                for x in 0..width as usize {
-                    img_buffer[y][x] = (img_res[y * (height as usize) + x] as f32);
+            for y in 0..height {
+                for x in 0..width {
+                    img_buffer[y][x] = (img_res[y * height + x] as f32);
                 }
             }
 
@@ -161,27 +164,27 @@ pub mod dora_tiff {
             }
         }
 
-        (img_buffer, minp, maxp, levels)
+        (img_buffer, width, height, minp, maxp, levels)
     }
 
     // Convert our model into a gtk::Image that we can present to
     // the screen.
-    pub fn get_image(path : &Path,  width: usize, height: usize) -> (gtk::Image, Vec<Vec<f32>>) {
-        let (img_buffer, minp, maxp, levels) = tiff_to_vec(path, width, height);
+    pub fn get_image(path : &Path) -> (gtk::Image, Vec<Vec<f32>>, usize, usize) {
+        let (img_buffer, width, height, minp, maxp, levels) = tiff_to_vec(path);
         let mut final_buffer : Vec<u8> = vec![];
 
-        for y in 0..height {
-            for x in 0..width {
+        for x in 0..width {
+            for y in 0..height {
                 final_buffer.push(0 as u8);
                 final_buffer.push(0 as u8);
                 final_buffer.push(0 as u8);
             }
         }
 
-        for y in 0..height {
-            for x in 0..width  {
-                let colour = (img_buffer[y][x] / maxp * 255.0) as u8;
-                let idx = (y * (height) + x) * 3;
+        for x in 0..width  {
+            for y in 0..height {
+                let colour = (img_buffer[x][y] / maxp * 255.0) as u8;
+                let idx = (x * (width) + y) * 3;
                 final_buffer[idx] = colour;
                 final_buffer[idx+1] = colour;
                 final_buffer[idx+2] = colour;
@@ -202,7 +205,7 @@ pub mod dora_tiff {
         );
 
         let image : gtk::Image = gtk::Image::new_from_pixbuf(Some(&pixybuf));
-        (image, img_buffer)
+        (image, img_buffer, width, height)
     }
 
     // Save out the FITS image
@@ -211,10 +214,10 @@ pub mod dora_tiff {
             .map(|i| (0..width).map(
                 move |j| (i + j) as f32)).flatten().collect();
 
-        for _y in 0..height {
-            for _x in 0..width {
-                let idx : usize = (_y * width +_x ) as usize; 
-                data[idx] = img[_x as usize][(height - _y - 1) as usize];
+        for _x in 0..width {
+            for _y in 0..height {
+                let idx : usize = (_x * width +_y ) as usize; 
+                data[idx] = img[_x as usize][_y as usize];
                 // / intensity * MULTFAC;
             }
         }
