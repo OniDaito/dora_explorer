@@ -171,13 +171,11 @@ pub mod dora_tiff {
         let mut final_buffer : Vec<u8> = vec![];
 
         for y in 0..height {
-            let mut row  : Vec<f32> = vec![];
             for x in 0..width {
-                row.push(0 as f32);
-                row.push(0 as f32);
-                row.push(0 as f32);
+                final_buffer.push(0 as f32);
+                final_buffer.push(0 as f32);
+                final_buffer.push(0 as f32);
             }
-            final_buffer.push(row);
         }
 
         for y in 0..height {
