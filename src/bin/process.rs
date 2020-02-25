@@ -78,7 +78,7 @@ fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32) {
 
                 for _i in 0..cslice.len() {
                     let (width, height) = get_size(&cslice[_i]);
-                    let (timg, minp, maxp, levels) = tiff_to_vec(&cslice[_i], width, height);
+                    let (timg, minp, maxp, levels, _, _) = tiff_to_vec(&cslice[_i]);
                     let fidx = format!("/image_{:06}.fits", ((start + _i) * 4) as usize);
                     let mut fitspath = out_path.clone();
                     fitspath.push_str(&fidx);
@@ -140,7 +140,6 @@ fn main() {
 
     let paths = fs::read_dir(Path::new(&args[1])).unwrap();
     let nthreads = args[3].parse::<u32>().unwrap();
-    paths.sort();
     let mut idf = 0;
 
     for path in paths {
