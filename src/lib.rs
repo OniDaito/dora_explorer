@@ -172,9 +172,9 @@ pub mod dora_tiff {
 
         for y in 0..height {
             for x in 0..width {
-                final_buffer.push(0 as f32);
-                final_buffer.push(0 as f32);
-                final_buffer.push(0 as f32);
+                final_buffer.push(0 as u8);
+                final_buffer.push(0 as u8);
+                final_buffer.push(0 as u8);
             }
         }
 
