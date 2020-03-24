@@ -14,8 +14,6 @@ extern crate tiff;
 extern crate fitrs;
 
 pub mod dora_tiff {
-
-    use gtk::prelude::*;
     use gio::prelude::*;
     use gdk_pixbuf::Pixbuf;
     use gdk_pixbuf::Colorspace;
@@ -26,7 +24,9 @@ pub mod dora_tiff {
     use std::io::prelude::*;
     use std::path::{Path, PathBuf};
     use tiff::decoder::{ifd, Decoder, DecodingResult};
+    use image::{GrayImage, DynamicImage, imageops};
     use tiff::ColorType;
+    use tiff::encoder::*;
     use fitrs::{Fits, Hdu};
 
     // For augmentation, we have 90, 180 and 270 degrees to avoid artefacts
@@ -230,6 +230,23 @@ pub mod dora_tiff {
         primary_hdu.insert("WIDTH", width as i32);
         primary_hdu.insert("HEIGHT", height as i32);
         Fits::create(filename, primary_hdu).expect("Failed to create");  
+    }
+
+    // Save out the TIFF stack as 16bit greyscale
+    pub fn save_tiff_stack(img_stack : &Vec<Vec<Vec<u16>>>, filename : &String, width: usize, height : usize) {
+        let mut file = File::create(filename).unwrap();
+        let mut tiff = TiffEncoder::new(&mut file).unwrap();
+        
+        for img in img_stack {
+            let mut b : Vec<u16> = vec![];
+            for y in 0..img.len(){
+                for x in 0..img[y].len(){
+                    b.push(img[y][x]);
+                }
+            }
+            let slice = &b[..];
+            tiff.write_image::<colortype::Gray16>(width as u32, height as u32, &slice).unwrap();
+        }
     }
 }
 
