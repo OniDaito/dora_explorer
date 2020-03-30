@@ -52,7 +52,10 @@ pub mod dora_tiff {
 
     pub fn aug_vec(img : &Vec<Vec<f32>>, dir : Direction) -> Vec<Vec<f32>> {
         let mut new_img : Vec<Vec<f32>> = vec!();
+        let height = img.len() as i32;
+        let width = img[0].len() as i32;
         let mut rm : [[i32; 2]; 2] = [[0, -1],[1, 0]];
+
         for y in 0..img.len() {
             let mut row : Vec<f32> = vec!();
             for x in 0..img[0].len() {
@@ -74,13 +77,88 @@ pub mod dora_tiff {
 
         for y in 0..img.len() {
             for x in 0..img[0].len() {
-                let nx = (x as i32 * rm[0][0] + y as i32 * rm[0][1]) as usize;
-                let ny = (x as i32 * rm[1][0] + y as i32 * rm[1][1]) as usize;
-                new_img[y][x] = img[ny][nx];
-             }
+
+                match dir { // *self has type Direction
+                    Direction::Right => {
+                        let mut nx = (width - 1) + (x as i32 * rm[0][0] + y as i32 * rm[0][1]);
+                        let mut ny = (x as i32 * rm[1][0] + y as i32 * rm[1][1]);
+                        new_img[y][x] = img[ny as usize][nx as usize];
+                    },
+                    Direction::Down =>{
+                        let mut nx = (width - 1) + (x as i32 * rm[0][0] + y as i32 * rm[0][1]);
+                        let mut ny = (height - 1) + (x as i32 * rm[1][0] + y as i32 * rm[1][1]);
+                        new_img[y][x] = img[ny as usize][nx as usize];
+                    },
+                    Direction::Left => {
+                        let mut nx = (x as i32 * rm[0][0] + y as i32 * rm[0][1]);
+                        let mut ny = (height - 1) + (x as i32 * rm[1][0] + y as i32 * rm[1][1]);
+                        new_img[y][x] = img[ny as usize][nx as usize];
+                    },
+                }
+            }
         }
 
         new_img
+    }
+
+    pub fn aug_stack(stack : &Vec<Vec<Vec<u16>>>, dir : Direction) -> Vec<Vec<Vec<u16>>> {
+        let mut new_stack : Vec<Vec<Vec<u16>>> = vec!();
+        let mut rm : [[i32; 2]; 2] = [[0, -1],[1, 0]];
+        let height = stack[0].len() as i32;
+        let width = stack[1].len() as i32;
+        
+        for z in 0..stack.len(){
+            let mut new_img : Vec<Vec<u16>> = vec!();
+            for y in 0..stack[0].len() {
+                let mut row : Vec<u16> = vec!();
+                for x in 0..stack[0][0].len() {
+                    row.push(0u16);
+                }
+                new_img.push(row);
+            }
+            new_stack.push(new_img);
+        }
+
+        match dir { // *self has type Direction
+            Direction::Right => {
+                rm = [[0, -1],[1, 0]];
+            },
+            Direction::Down =>{
+                rm = [[-1, 0],[0, -1]];
+            },
+            Direction::Left => {
+                rm = [[0, 1],[-1, 0]];
+            },
+        }
+
+        for z in 0..stack.len() {
+            let img = &stack[z];
+            for y in 0..img.len() {
+                for x in 0..img[0].len() {
+
+                    match dir { // *self has type Direction
+                        Direction::Right => {
+                            let mut nx = (width - 1) + (x as i32 * rm[0][0] + y as i32 * rm[0][1]);
+                            let mut ny = (x as i32 * rm[1][0] + y as i32 * rm[1][1]);
+                            new_stack[z][y][x] = img[ny as usize][nx as usize];                       
+                        },
+                        Direction::Down =>{
+                            let mut nx = (width - 1) + (x as i32 * rm[0][0] + y as i32 * rm[0][1]);
+                            let mut ny = (height - 1) + (x as i32 * rm[1][0] + y as i32 * rm[1][1]);
+                            new_stack[z][y][x] = img[ny as usize][nx as usize];                       
+                        },
+                        Direction::Left => {
+                            let mut nx = (x as i32 * rm[0][0] + y as i32 * rm[0][1]);
+                            let mut ny = (height - 1) + (x as i32 * rm[1][0] + y as i32 * rm[1][1]);
+                            new_stack[z][y][x] = img[ny as usize][nx as usize];                       
+                        },
+                    }
+
+                }
+            }
+        }
+
+        new_stack
     }
 
     pub fn tiff_to_vec(path : &Path) -> (Vec<Vec<f32>>, usize, usize, f32, f32, usize) {
@@ -166,6 +244,62 @@ pub mod dora_tiff {
         }
 
         (img_buffer, width, height, minp, maxp, levels)
+    }
+
+
+    pub fn tiff_to_stack(path : &Path) -> (Vec<Vec<Vec<u16>>>, usize, usize, usize) {
+        let img_file = File::open(path).expect("Cannot find test image!");
+        let mut decoder = Decoder::new(img_file).expect("Cannot create decoder");
+
+        assert_eq!(decoder.colortype().unwrap(), ColorType::Gray(16));
+        let img_res = decoder.read_image().unwrap();
+
+        // Check the image size here
+        let (w, h) = decoder.dimensions().unwrap();
+        let width = w as usize;
+        let height = h as usize;
+
+        let mut img_stack : Vec<Vec<Vec<u16>>> = vec![];
+
+        // Our buffer - we sum all the image here and then scale
+        let mut img_buffer : Vec<Vec<u16>> = vec![];
+
+        // Now we've decoded, lets update the img_buffer
+        if let DecodingResult::U16(img_res) = img_res {
+            for y in 0..height {
+                let mut row : Vec<u16> = vec![];
+                for x in 0..width {
+                    row.push((img_res[y * height + x] as u16));
+                }
+                img_buffer.push(row);
+            }
+
+            img_stack.push(img_buffer);
+
+            while decoder.more_images() {
+                let next_res = decoder.next_image();
+                match next_res {
+                    Ok(res) => {   
+                        let img_next = decoder.read_image().unwrap();
+                        if let DecodingResult::U16(img_next) = img_next {
+                            let mut next_buffer : Vec<Vec<u16>> = vec![];
+
+                            for y in 0..height as usize {
+                                let mut row : Vec<u16> = vec![];
+                                for x in 0..width as usize {
+                                    row.push(img_next[y * (height as usize) + x] as u16);
+                                }
+                                next_buffer.push(row);
+                            }
+                            img_stack.push(next_buffer);
+                        }
+                    },
+                    Err(_) => {}
+                }
+            }
+        }
+        let depth = img_stack.len();
+        (img_stack, width, height, depth)
     }
 
     // Convert our model into a gtk::Image that we can present to

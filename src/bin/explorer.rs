@@ -78,7 +78,6 @@ pub fn resize_buffer_2d(buff : &mut Vec<Vec<f32>>, width: usize, height : usize)
     }
 }
 
-
 // Our chooser struct/class implementation. Mostly just runs the GTK
 // and keeps a hold on our models.
 impl Explorer {
@@ -144,7 +143,6 @@ impl Explorer {
                     return;
                 }
 
-        
                 // Get the current filename and save out the buffer
                 let fidx = format!("/image_{:06}.fits", app_accept.accept_count.get() as usize);
                 let mut fitspath = String::from(app_accept.output_path.to_str().unwrap());

@@ -46,8 +46,11 @@ use ndarray::{Slice, SliceInfo, s, Array1};
 use gtk::{Application, ApplicationWindow, Button};
 use dora_explorer::dora_tiff::save_fits;
 use dora_explorer::dora_tiff::tiff_to_vec;
+use dora_explorer::dora_tiff::tiff_to_stack;
+use dora_explorer::dora_tiff::save_tiff_stack;
 use dora_explorer::dora_tiff::get_size;
 use dora_explorer::dora_tiff::aug_vec;
+use dora_explorer::dora_tiff::aug_stack;
 use dora_explorer::dora_tiff::Direction;
 
 // render function. Breaks up the list of paths into chunks for each thread
@@ -84,6 +87,13 @@ fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32) {
                     fitspath.push_str(&fidx);
                     save_fits(&timg, &fitspath, width, height);
 
+                    let (img_stack, _, _, _) = tiff_to_stack(&cslice[_i]);
+
+                    let tidx = format!("/image_{:06}.tiff", ((start + _i) * 4) as usize);
+                    let mut tiffpath = out_path.clone();
+                    tiffpath.push_str(&tidx);
+                    save_tiff_stack(&img_stack, &tiffpath, width, height);
+
                     // Now Augment
                     let fidx1 = format!("/image_{:06}.fits", ((start + _i) * 4 + 1) as usize);
                     fitspath = out_path.clone();
@@ -91,17 +101,35 @@ fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32) {
                     let aimg1 = aug_vec(&timg, Direction::Right);
                     save_fits(&aimg1, &fitspath, width, height);
 
+                    let tidx1 = format!("/image_{:06}.tiff", ((start + _i) * 4 + 1) as usize);
+                    let mut tiffpath = out_path.clone();
+                    tiffpath.push_str(&tidx1);
+                    let astack1 = aug_stack(&img_stack, Direction::Right);
+                    save_tiff_stack(&astack1, &tiffpath, width, height);
+
                     let fidx2 = format!("/image_{:06}.fits", ((start + _i) * 4 + 2) as usize);
                     fitspath = out_path.clone();
                     fitspath.push_str(&fidx2);
                     let aimg2 = aug_vec(&timg, Direction::Down);
                     save_fits(&aimg2, &fitspath, width, height);
 
+                    let tidx2 = format!("/image_{:06}.tiff", ((start + _i) * 4 + 2) as usize);
+                    let mut tiffpath = out_path.clone();
+                    tiffpath.push_str(&tidx2);
+                    let astack2 = aug_stack(&img_stack, Direction::Down);
+                    save_tiff_stack(&astack2, &tiffpath, width, height);
+
                     let fidx3 = format!("/image_{:06}.fits", ((start + _i) * 4 + 3) as usize);
                     fitspath = out_path.clone();
                     fitspath.push_str(&fidx3);
-                    let aimg3 = aug_vec(&timg, Direction::Right);
+                    let aimg3 = aug_vec(&timg, Direction::Left);
                     save_fits(&aimg3, &fitspath, width, height);
+
+                    let tidx3 = format!("/image_{:06}.tiff", ((start + _i) * 4 + 3) as usize);
+                    let mut tiffpath = out_path.clone();
+                    tiffpath.push_str(&tidx3);
+                    let astack3 = aug_stack(&img_stack, Direction::Left);
+                    save_tiff_stack(&astack3, &tiffpath, width, height);
             
                     tx.send(_i).unwrap();
                 }
