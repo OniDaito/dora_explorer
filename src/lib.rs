@@ -28,6 +28,7 @@ pub mod dora_tiff {
     use tiff::ColorType;
     use tiff::encoder::*;
     use fitrs::{Fits, Hdu};
+    use std::f32::consts::PI;
 
     // For augmentation, we have 90, 180 and 270 degrees to avoid artefacts
     pub enum Direction {
@@ -244,6 +245,46 @@ pub mod dora_tiff {
         }
 
         (img_buffer, width, height, minp, maxp, levels)
+    }
+
+    // Perform a gauss blur
+    pub fn gauss_blur(img : &Vec<Vec<f32>>, gauss : f32 ) -> Vec<Vec<f32>> {
+        // http://blog.ivank.net/fastest-gaussian-blur.html
+        let rs = (gauss * 2.57).ceil() as usize;
+        let height = img.len();
+        let width = img[0].len();
+        
+        // New temp image
+        let mut img_blurred : Vec<Vec<f32>> = vec![];
+
+        for y in 0..img.len() {
+            let mut row : Vec<f32> = vec!();
+            for x in 0..img[0].len() {
+                row.push(0f32);
+            }
+            img_blurred.push(row);
+        }
+        
+
+        for y in 0..height {
+            for x in 0..width {
+                let mut val : f32 = 0.0;
+                let mut wsum : f32 = 0.0;
+
+                for iy in 1-rs..y+rs+1 {
+                    for ix in x-rs..x+rs+1 {
+                        let x = (width-1).min(0.max(ix));
+                        let y = (height-1).min(0.max(iy));
+                        let dsq = ((ix - x) * (ix - x) + (iy - y) * (iy - y)) as f32;
+                        let wght = (-dsq / (2.0*gauss*gauss)).exp() / (PI * 2.0 * gauss * gauss);
+                        val += img[y][x] * wght;
+                        wsum += wght;
+                    }
+                }
+                img_blurred[y][x] = (val/wsum).round();
+            }
+        }
+        img_blurred
     }
 
 

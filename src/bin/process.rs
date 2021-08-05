@@ -51,10 +51,11 @@ use dora_explorer::dora_tiff::save_tiff_stack;
 use dora_explorer::dora_tiff::get_size;
 use dora_explorer::dora_tiff::aug_vec;
 use dora_explorer::dora_tiff::aug_stack;
+use dora_explorer::dora_tiff::gauss_blur;
 use dora_explorer::dora_tiff::Direction;
 
 // render function. Breaks up the list of paths into chunks for each thread
-fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32) {
+fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32, gauss : f32) {
     // Split into threads here I think
     let pi = std::f32::consts::PI;
     let (tx, rx) = channel();
@@ -94,11 +95,14 @@ fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32) {
                     tiffpath.push_str(&tidx);
                     save_tiff_stack(&img_stack, &tiffpath, width, height);
 
+                    // Perform a gauss blur
+                    let gimg = gauss_blur(&timg, gauss);
+
                     // Now Augment
                     let fidx1 = format!("/image_{:06}.fits", ((start + _i) * 4 + 1) as usize);
                     fitspath = out_path.clone();
                     fitspath.push_str(&fidx1);
-                    let aimg1 = aug_vec(&timg, Direction::Right);
+                    let aimg1 = aug_vec(&gimg, Direction::Right);
                     save_fits(&aimg1, &fitspath, width, height);
 
                     let tidx1 = format!("/image_{:06}.tiff", ((start + _i) * 4 + 1) as usize);
@@ -110,7 +114,7 @@ fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32) {
                     let fidx2 = format!("/image_{:06}.fits", ((start + _i) * 4 + 2) as usize);
                     fitspath = out_path.clone();
                     fitspath.push_str(&fidx2);
-                    let aimg2 = aug_vec(&timg, Direction::Down);
+                    let aimg2 = aug_vec(&gimg, Direction::Down);
                     save_fits(&aimg2, &fitspath, width, height);
 
                     let tidx2 = format!("/image_{:06}.tiff", ((start + _i) * 4 + 2) as usize);
@@ -122,7 +126,7 @@ fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32) {
                     let fidx3 = format!("/image_{:06}.fits", ((start + _i) * 4 + 3) as usize);
                     fitspath = out_path.clone();
                     fitspath.push_str(&fidx3);
-                    let aimg3 = aug_vec(&timg, Direction::Left);
+                    let aimg3 = aug_vec(&gimg, Direction::Left);
                     save_fits(&aimg3, &fitspath, width, height);
 
                     let tidx3 = format!("/image_{:06}.tiff", ((start + _i) * 4 + 3) as usize);
@@ -157,17 +161,18 @@ fn main() {
     
     if args.len() < 4 {
         println!("Usage: explorer <path to directory of tiff files>
-            <output dir> <num threads> <OPTIONAL filter>"); 
+            <output dir> <num threads> <gauss> <OPTIONAL filter>"); 
         process::exit(1);
     }
 
     let mut filter : String = String::new();
-    if args.len() == 5 {
-        filter.push_str(&args[4]);
+    if args.len() == 6 {
+        filter.push_str(&args[5]);
     }
 
     let paths = fs::read_dir(Path::new(&args[1])).unwrap();
     let nthreads = args[3].parse::<u32>().unwrap();
+    let gauss = args[4].parse::<f32>().unwrap();
     let mut idf = 0;
 
     for path in paths {
@@ -199,5 +204,5 @@ fn main() {
        
     }
 
-    render(&image_files, &args[2], nthreads);
+    render(&image_files, &args[2], nthreads, gauss);
 }
