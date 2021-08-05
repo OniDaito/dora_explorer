@@ -264,19 +264,17 @@ pub mod dora_tiff {
             }
             img_blurred.push(row);
         }
-        
 
-        for y in 0..height {
-            for x in 0..width {
+        for w in 0..height {
+            for h in 0..width {
                 let mut val : f32 = 0.0;
                 let mut wsum : f32 = 0.0;
-                println!("test.");
 
-                for iy in 1-rs..y+rs+1 {
-                    for ix in x-rs..x+rs+1 {
+                for iy in h-rs..h+rs+1 {
+                    for ix in w-rs..w+rs+1 {
                         let x = (width-1).min(0.max(ix));
                         let y = (height-1).min(0.max(iy));
-                        let dsq = ((ix - x) * (ix - x) + (iy - y) * (iy - y)) as f32;
+                        let dsq = ((ix - w) * (ix - w) + (iy - h) * (iy - h)) as f32;
                         let wght = (-dsq / (2.0*gauss*gauss)).exp() / (PI * 2.0 * gauss * gauss);
                         println!("dsq {} wght {}.", dsq, wght);
                         val += img[y][x] * wght;
