@@ -270,6 +270,7 @@ pub mod dora_tiff {
             for x in 0..width {
                 let mut val : f32 = 0.0;
                 let mut wsum : f32 = 0.0;
+                println!("test.");
 
                 for iy in 1-rs..y+rs+1 {
                     for ix in x-rs..x+rs+1 {
