@@ -276,7 +276,6 @@ pub mod dora_tiff {
                         let y = (height-1).min(0.max(iy));
                         let dsq = ((ix - w) * (ix - w) + (iy - h) * (iy - h)) as f32;
                         let wght = (-dsq / (2.0*gauss*gauss)).exp() / (PI * 2.0 * gauss * gauss);
-                        println!("dsq {} wght {}.", dsq, wght);
                         val += img[y][x] * wght;
                         wsum += wght;
                     }
