@@ -257,9 +257,9 @@ pub mod dora_tiff {
         // New temp image
         let mut img_blurred : Vec<Vec<f32>> = vec![];
 
-        for y in 0..img.len() {
+        for y in 0..height {
             let mut row : Vec<f32> = vec!();
-            for x in 0..img[0].len() {
+            for x in 0..width {
                 row.push(0f32);
             }
             img_blurred.push(row);
@@ -277,6 +277,7 @@ pub mod dora_tiff {
                         let y = (height-1).min(0.max(iy));
                         let dsq = ((ix - x) * (ix - x) + (iy - y) * (iy - y)) as f32;
                         let wght = (-dsq / (2.0*gauss*gauss)).exp() / (PI * 2.0 * gauss * gauss);
+                        println!("dsq {} wght {}.", dsq, wght);
                         val += img[y][x] * wght;
                         wsum += wght;
                     }
