@@ -276,9 +276,9 @@ pub mod dora_tiff {
                     for j in 0..(rs*2+1) {
                         let iy : f32 = (w as f32 ) - (rs as f32) + (j as f32);
 
-                        let x = (width-1).min(0.max(ix));
-                        let y = (height-1).min(0.max(iy));
-                        let dsq = ((ix - w) * (ix - w) + (iy - h) * (iy - h)) as f32;
+                        let x = ((width - 1) as f32).min(0f32.max(ix)) as usize;
+                        let y = ((height -1) as f32).min(0f32.max(iy)) as usize;
+                        let dsq = (ix - w as f32) * (ix - w as f32) + (iy - h as f32) * (iy - h as f32);
                         let wght = (-dsq / (2.0*gauss*gauss)).exp() / (PI * 2.0 * gauss * gauss);
                         val += img[y][x] * wght;
                         wsum += wght;
