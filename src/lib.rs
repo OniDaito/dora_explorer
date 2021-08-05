@@ -265,8 +265,8 @@ pub mod dora_tiff {
             img_blurred.push(row);
         }
 
-        for w in 0..height {
-            for h in 0..width {
+        for h in 0..height {
+            for w in 0..width {
                 let mut val : f32 = 0.0;
                 let mut wsum : f32 = 0.0;
 
