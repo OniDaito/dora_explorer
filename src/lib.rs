@@ -281,7 +281,7 @@ pub mod dora_tiff {
                         wsum += wght;
                     }
                 }
-                img_blurred[y][x] = (val/wsum).round();
+                img_blurred[y][x] = val / wsum;
             }
         }
         img_blurred

@@ -25,9 +25,9 @@ version = "0.8.0"
 features = ["v3_16"]
 
 [dependencies.gio]
-version = ""
+version = "0.8.0"
 features = ["v2_44"]
 
 [dependencies.gdk-pixbuf]
-version = ""
+version = "0.8.0"
 features = ["v2_32"]
