@@ -270,8 +270,12 @@ pub mod dora_tiff {
                 let mut val : f32 = 0.0;
                 let mut wsum : f32 = 0.0;
 
-                for iy in h-rs..h+rs+1 {
-                    for ix in w-rs..w+rs+1 {
+                for i in 0..(rs*2+1) {
+                    let ix : f32 = (h as f32 ) - (rs as f32) + (i as f32);
+
+                    for j in 0..(rs*2+1) {
+                        let iy : f32 = (w as f32 ) - (rs as f32) + (j as f32);
+
                         let x = (width-1).min(0.max(ix));
                         let y = (height-1).min(0.max(iy));
                         let dsq = ((ix - w) * (ix - w) + (iy - h) * (iy - h)) as f32;
