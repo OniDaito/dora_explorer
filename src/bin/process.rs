@@ -81,7 +81,7 @@ fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32, gau
                 let side = Uniform::new(-pi, pi);
 
                 for _i in 0..cslice.len() {
-                    let (width, height) = get_size(&cslice[_i]);
+                    let (width, height, depth) = get_size(&cslice[_i]);
                     let (timg, minp, maxp, levels, _, _) = tiff_to_vec(&cslice[_i]);
 
                     // Perform a gauss blur
@@ -98,6 +98,12 @@ fn render (image_paths : &Vec<PathBuf>, out_path : &String,  nthreads : u32, gau
                     let mut tiffpath = out_path.clone();
                     tiffpath.push_str(&tidx);
                     save_tiff_stack(&img_stack, &tiffpath, width, height);
+
+                    // Save a fits stack
+                    let sidx = format!("/image_stack_{:06}.fits", ((start + _i) * 4) as usize);
+                    fitspath = out_path.clone();
+                    fitspath.push_str(&tidx);
+                    save_fits_stack(&img_stack, &fitspath, width, height, depth);
                  
                     // Now Augment
                     let fidx1 = format!("/image_{:06}.fits", ((start + _i) * 4 + 1) as usize);

@@ -44,11 +44,17 @@ pub mod dora_tiff {
         dims_height as usize == height && dims_width as usize == width
     }
 
-    pub fn get_size(path : &Path) -> (usize, usize) {
+    pub fn get_size(path : &Path) -> (usize, usize, usize) {
         let img_file = File::open(path).expect("Cannot find test image!");
         let mut decoder = Decoder::new(img_file).expect("Cannot create decoder");
         let (dims_width, dims_height) = decoder.dimensions().unwrap();
-        (dims_height as usize,  dims_width as usize)
+        let mut dims_depth : usize = 0;
+        
+        while decoder.more_images() {
+            dims_depth += 1;
+        }
+        
+        (dims_height as usize,  dims_width as usize, dims_depth as usize)
     }
 
     pub fn aug_vec(img : &Vec<Vec<f32>>, dir : Direction) -> Vec<Vec<f32>> {
@@ -425,6 +431,31 @@ pub mod dora_tiff {
             let slice = &b[..];
             tiff.write_image::<colortype::Gray16>(width as u32, height as u32, &slice).unwrap();
         }
+    }
+
+    // Save out the stack as float FITS greyscale
+    pub fn save_fits_stack(img_stack : &Vec<Vec<Vec<f32>>>, filename : &String, width: usize, height : usize, depth : usize) {
+        let mut data : Vec<f32> = Vec::with_capacity(depth * height * width);
+        for i in 0..(depth * height * width) {
+            data.push(0.0);
+        }
+
+        for _x in 0..width {
+            for _y in 0..height {
+                for _z in 0..depth {
+                    let idx : usize = ((_z * width * height) +  (_x * width) +_y ) as usize; 
+                    data[idx] = img_stack[_z as usize][_y as usize][_x as usize];
+                }
+            }
+        }
+
+        let mut primary_hdu =  Hdu::new(&[width as usize , height as usize,  depth as usize], data);
+        // Insert values in header
+        primary_hdu.insert("NORMALISATION", "NONE");
+        primary_hdu.insert("WIDTH", width as i32);
+        primary_hdu.insert("HEIGHT", height as i32);
+        primary_hdu.insert("DEPTH", depth as i32);
+        Fits::create(filename, primary_hdu).expect("Failed to create");  
     }
 }
 
