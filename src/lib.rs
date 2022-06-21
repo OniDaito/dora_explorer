@@ -52,6 +52,7 @@ pub mod dora_tiff {
         
         while decoder.more_images() {
             dims_depth += 1;
+            let next_res = decoder.next_image();
         }
         
         (dims_height as usize,  dims_width as usize, dims_depth as usize)
