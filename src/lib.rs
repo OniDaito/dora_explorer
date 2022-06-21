@@ -434,7 +434,7 @@ pub mod dora_tiff {
     }
 
     // Save out the stack as float FITS greyscale
-    pub fn save_fits_stack(img_stack : &Vec<Vec<Vec<f32>>>, filename : &String, width: usize, height : usize, depth : usize) {
+    pub fn save_fits_stack(img_stack : &Vec<Vec<Vec<u16>>>, filename : &String, width: usize, height : usize, depth : usize) {
         let mut data : Vec<f32> = Vec::with_capacity(depth * height * width);
         for i in 0..(depth * height * width) {
             data.push(0.0);
@@ -444,7 +444,7 @@ pub mod dora_tiff {
             for _y in 0..height {
                 for _z in 0..depth {
                     let idx : usize = ((_z * width * height) +  (_x * width) +_y ) as usize; 
-                    data[idx] = img_stack[_z as usize][_y as usize][_x as usize];
+                    data[idx] = img_stack[_z as usize][_y as usize][_x as usize] as f32;
                 }
             }
         }
