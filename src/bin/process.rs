@@ -48,6 +48,7 @@ use dora_explorer::dora_tiff::save_fits;
 use dora_explorer::dora_tiff::tiff_to_vec;
 use dora_explorer::dora_tiff::tiff_to_stack;
 use dora_explorer::dora_tiff::save_tiff_stack;
+use dora_explorer::dora_tiff::save_fits_stack;
 use dora_explorer::dora_tiff::get_size;
 use dora_explorer::dora_tiff::aug_vec;
 use dora_explorer::dora_tiff::aug_stack;
